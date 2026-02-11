@@ -2,7 +2,7 @@
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**URL**: https://github.com/mnavyashree/Financial_Risk_Twin.git
 
 ## How can I edit this code?
 
