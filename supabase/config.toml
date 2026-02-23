@@ -1,1 +1,10 @@
 project_id = "qjuurivonmksfpueydzj"
+
+[functions.export-report]
+verify_jwt = false
+
+[functions.parse-csv]
+verify_jwt = false
+
+[functions.match-scenario]
+verify_jwt = false
