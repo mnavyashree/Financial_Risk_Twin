@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Building2, DollarSign, Users, TrendingUp, Percent, Scale } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { StartupInputs, defaultInputs, industries } from '@/types/risk';
 interface RiskInputFormProps {
   onSubmit: (inputs: StartupInputs) => void;
   isAnalyzing: boolean;
+  csvOverrides?: Partial<StartupInputs> | null;
 }
 
 function FormField({ label, icon: Icon, children }: { label: string; icon: React.ElementType; children: React.ReactNode }) {
@@ -24,8 +25,15 @@ function FormField({ label, icon: Icon, children }: { label: string; icon: React
   );
 }
 
-export function RiskInputForm({ onSubmit, isAnalyzing }: RiskInputFormProps) {
+export function RiskInputForm({ onSubmit, isAnalyzing, csvOverrides }: RiskInputFormProps) {
   const [inputs, setInputs] = useState<StartupInputs>(defaultInputs);
+
+  // Apply CSV overrides when they change
+  useEffect(() => {
+    if (csvOverrides) {
+      setInputs(prev => ({ ...prev, ...csvOverrides }));
+    }
+  }, [csvOverrides]);
 
   const update = (field: keyof StartupInputs, value: string | number) => {
     setInputs(prev => ({ ...prev, [field]: value }));

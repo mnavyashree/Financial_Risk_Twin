@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion';
-import { Activity, Zap, LogOut } from 'lucide-react';
+import { Activity, Zap, LogOut, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
 export function DashboardHeader() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSignOut = async () => {
     await signOut();
@@ -21,7 +22,7 @@ export function DashboardHeader() {
       transition={{ duration: 0.4 }}
     >
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
           <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
             <Activity className="h-5 w-5 text-primary" />
           </div>
@@ -37,7 +38,16 @@ export function DashboardHeader() {
           </div>
           {user && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground hidden sm:inline">{user.email}</span>
+              <Button
+                variant={location.pathname === '/history' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/history')}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Clock className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">History</span>
+              </Button>
+              <span className="text-xs text-muted-foreground hidden md:inline">{user.email}</span>
               <Button
                 variant="ghost"
                 size="sm"

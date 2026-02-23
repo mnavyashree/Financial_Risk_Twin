@@ -14,7 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      risk_analyses: {
+        Row: {
+          company_name: string
+          created_at: string
+          id: string
+          industry: string
+          inputs: Json
+          risk_score: Json
+          scenarios: Json
+          suggestions: Json
+          user_id: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string
+          id?: string
+          industry: string
+          inputs: Json
+          risk_score: Json
+          scenarios: Json
+          suggestions: Json
+          user_id: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          id?: string
+          industry?: string
+          inputs?: Json
+          risk_score?: Json
+          scenarios?: Json
+          suggestions?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      risk_scenarios: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          name: string
+          recommendation: string
+          risk_classification: string
+          thresholds: Json
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          name: string
+          recommendation: string
+          risk_classification: string
+          thresholds: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          recommendation?: string
+          risk_classification?: string
+          thresholds?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
