@@ -75,28 +75,28 @@ export function RiskInputForm({ onSubmit, isAnalyzing, csvOverrides }: RiskInput
           </Select>
         </FormField>
 
-        <FormField label="Monthly Revenue ($)" icon={DollarSign}>
+        <FormField label="Monthly Revenue (₹)" icon={DollarSign}>
           <Input type="number" placeholder="50000"
           value={inputs.monthlyRevenue || ''}
           onChange={(e) => update('monthlyRevenue', Number(e.target.value))}
           className="bg-muted/50 border-border/50 font-mono text-foreground placeholder:text-muted-foreground" />
         </FormField>
 
-        <FormField label="Monthly Burn Rate ($)" icon={DollarSign}>
+        <FormField label="Monthly Burn Rate (₹)" icon={DollarSign}>
           <Input type="number" placeholder="80000"
           value={inputs.monthlyBurnRate || ''}
           onChange={(e) => update('monthlyBurnRate', Number(e.target.value))}
           className="bg-muted/50 border-border/50 font-mono text-foreground placeholder:text-muted-foreground" />
         </FormField>
 
-        <FormField label="Total Funding ($)" icon={DollarSign}>
+        <FormField label="Total Funding (₹)" icon={DollarSign}>
           <Input type="number" placeholder="2000000"
           value={inputs.totalFunding || ''}
           onChange={(e) => update('totalFunding', Number(e.target.value))}
           className="bg-muted/50 border-border/50 font-mono text-foreground placeholder:text-muted-foreground" />
         </FormField>
 
-        <FormField label="Cash on Hand ($)" icon={DollarSign}>
+        <FormField label="Cash on Hand (₹)" icon={DollarSign}>
           <Input type="number" placeholder="500000"
           value={inputs.cashOnHand || ''}
           onChange={(e) => update('cashOnHand', Number(e.target.value))}
