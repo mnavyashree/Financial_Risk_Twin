@@ -80,10 +80,10 @@ Report ID: ${analysis.id}
   FINANCIAL METRICS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Monthly Revenue:        $${Number(inputs.monthlyRevenue).toLocaleString()}
-  Monthly Burn Rate:      $${Number(inputs.monthlyBurnRate).toLocaleString()}
-  Total Funding:          $${Number(inputs.totalFunding).toLocaleString()}
-  Cash on Hand:           $${Number(inputs.cashOnHand).toLocaleString()}
+  Monthly Revenue:        ₹${Number(inputs.monthlyRevenue).toLocaleString('en-IN')}
+  Monthly Burn Rate:      ₹${Number(inputs.monthlyBurnRate).toLocaleString('en-IN')}
+  Total Funding:          ₹${Number(inputs.totalFunding).toLocaleString('en-IN')}
+  Cash on Hand:           ₹${Number(inputs.cashOnHand).toLocaleString('en-IN')}
   Team Size:              ${inputs.headcount}
   Customer Count:         ${inputs.customerCount}
   Monthly Churn Rate:     ${inputs.churnRate}%
