@@ -157,9 +157,9 @@ const History = () => {
                     >
                       <div className="px-4 pb-4 space-y-3 border-t border-border/30 pt-3">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <MetricItem label="Revenue" value={`$${Number(a.inputs.monthlyRevenue).toLocaleString()}`} />
-                          <MetricItem label="Burn Rate" value={`$${Number(a.inputs.monthlyBurnRate).toLocaleString()}`} />
-                          <MetricItem label="Cash" value={`$${Number(a.inputs.cashOnHand).toLocaleString()}`} />
+                          <MetricItem label="Revenue" value={`₹${Number(a.inputs.monthlyRevenue).toLocaleString('en-IN')}`} />
+                          <MetricItem label="Burn Rate" value={`₹${Number(a.inputs.monthlyBurnRate).toLocaleString('en-IN')}`} />
+                          <MetricItem label="Cash" value={`₹${Number(a.inputs.cashOnHand).toLocaleString('en-IN')}`} />
                           <MetricItem label="Growth" value={`${a.inputs.revenueGrowthRate}%`} />
                         </div>
                         <div className="grid grid-cols-4 gap-2">
