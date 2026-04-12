@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Activity, Zap, LogOut, Clock } from 'lucide-react';
+import { Activity, Zap, LogOut, Clock, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -43,9 +43,16 @@ export function DashboardHeader() {
               size="sm"
               onClick={() => navigate('/history')}
               className="text-muted-foreground hover:text-foreground">
-              
                 <Clock className="h-4 w-4 mr-1" />
                 <span className="hidden sm:inline">History</span>
+              </Button>
+              <Button
+              variant={location.pathname === '/teams' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => navigate('/teams')}
+              className="text-muted-foreground hover:text-foreground">
+                <Users className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Teams</span>
               </Button>
               <span className="text-xs text-muted-foreground hidden md:inline">{user.email}</span>
               <Button
