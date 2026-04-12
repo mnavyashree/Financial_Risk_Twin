@@ -5,10 +5,11 @@ import { DashboardHeader } from '@/components/DashboardHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Download, RefreshCw, Trash2, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
+import { Clock, Download, RefreshCw, Trash2, ChevronDown, ChevronUp, ArrowLeft, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { RiskScore, StartupInputs, Suggestion, Scenario } from '@/types/risk';
+import { AnalysisComments } from '@/components/AnalysisComments';
 
 interface AnalysisRecord {
   id: string;
@@ -194,6 +195,7 @@ const History = () => {
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
+                        <AnalysisComments analysisId={a.id} />
                       </div>
                     </motion.div>
                   )}

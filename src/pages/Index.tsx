@@ -8,6 +8,10 @@ import { SuggestionsPanel } from '@/components/SuggestionsPanel';
 import { ScenarioPredictions } from '@/components/ScenarioPredictions';
 import { FileUpload } from '@/components/FileUpload';
 import { ScenarioMatchDisplay } from '@/components/ScenarioMatchDisplay';
+import { RiskRadarChart } from '@/components/RiskRadarChart';
+import { RunwayGauge } from '@/components/RunwayGauge';
+import { AIInsightsPanel } from '@/components/AIInsightsPanel';
+import { KeyMetricsGrid } from '@/components/KeyMetricsGrid';
 import { calculateRiskScore, generateSuggestions, generateScenarios } from '@/lib/risk-engine';
 import { StartupInputs, RiskScore, Suggestion, Scenario } from '@/types/risk';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,13 +44,11 @@ const Index = () => {
   const { toast } = useToast();
   const location = useLocation();
 
-  // Handle recalculate from history
   const recalculateInputs = (location.state as { recalculate?: StartupInputs } | null)?.recalculate;
 
   useEffect(() => {
     if (recalculateInputs) {
       setCsvOverrides(recalculateInputs);
-      // Clear the state so it doesn't persist
       window.history.replaceState({}, document.title);
     }
   }, [recalculateInputs]);
@@ -66,7 +68,6 @@ const Index = () => {
     setSuggestions(sugg);
     setScenarios(scen);
 
-    // Save to database
     if (user) {
       try {
         const { data, error } = await (supabase
@@ -87,11 +88,10 @@ const Index = () => {
           setCurrentAnalysisId(data.id);
         }
       } catch {
-        // Non-blocking - analysis still works without save
+        // Non-blocking
       }
     }
 
-    // Match against predefined scenarios
     try {
       const { data: matchData } = await supabase.functions.invoke('match-scenario', {
         body: { inputs },
@@ -119,7 +119,7 @@ const Index = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `RiskTwin_Report_${companyName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
+      a.download = `FinTwin_Report_${companyName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -184,7 +184,7 @@ const Index = () => {
                 </motion.div>
               )}
 
-              {riskScore && !isAnalyzing && (
+              {riskScore && !isAnalyzing && currentInputs && (
                 <motion.div key="results" className="space-y-6">
                   {companyName && (
                     <motion.div
@@ -209,7 +209,25 @@ const Index = () => {
                       )}
                     </motion.div>
                   )}
-                  <RiskScoreDisplay score={riskScore} />
+
+                  {/* Key Metrics Overview */}
+                  <KeyMetricsGrid inputs={currentInputs} />
+
+                  {/* Risk Score + Radar side by side */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <RiskScoreDisplay score={riskScore} />
+                    <div className="space-y-6">
+                      <RiskRadarChart score={riskScore} />
+                      <RunwayGauge
+                        cashOnHand={currentInputs.cashOnHand}
+                        monthlyBurnRate={currentInputs.monthlyBurnRate}
+                      />
+                    </div>
+                  </div>
+
+                  {/* AI Insights */}
+                  <AIInsightsPanel inputs={currentInputs} riskScore={riskScore} />
+
                   <ScenarioMatchDisplay scenarios={matchedScenarios} />
                   <SuggestionsPanel suggestions={suggestions} />
                   <ScenarioPredictions scenarios={scenarios} />

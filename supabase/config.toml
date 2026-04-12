@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.match-scenario]
 verify_jwt = false
+
+[functions.ai-risk-insights]
+verify_jwt = false
