@@ -20,9 +20,61 @@ interface FileUploadProps {
   onCSVParsed: (data: Partial<StartupInputs>) => void;
 }
 
+async function extractTextFromPDF(file: File): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist');
+
+  // Use the bundled worker
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.mjs',
+    import.meta.url
+  ).toString();
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  const textParts: string[] = [];
+  const maxPages = Math.min(pdf.numPages, 20); // Limit to 20 pages
+
+  for (let i = 1; i <= maxPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item: any) => item.str)
+      .join(' ');
+    textParts.push(pageText);
+  }
+
+  return textParts.join('\n\n');
+}
+
+async function extractTextFromDOCX(file: File): Promise<string> {
+  const mammoth = await import('mammoth');
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  return result.value;
+}
+
+function isCSV(file: File): boolean {
+  return file.type === 'text/csv' || file.name.endsWith('.csv');
+}
+
+function isPDF(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.endsWith('.pdf');
+}
+
+function isDOCX(file: File): boolean {
+  return (
+    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    file.type === 'application/msword' ||
+    file.name.endsWith('.docx') ||
+    file.name.endsWith('.doc')
+  );
+}
+
 export function FileUpload({ onCSVParsed }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [parsingLabel, setParsingLabel] = useState('Parsing...');
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
@@ -35,7 +87,7 @@ export function FileUpload({ onCSVParsed }: FileUploadProps) {
     setStatus(null);
 
     // Validate type
-    if (!ALLOWED_TYPES.includes(file.type) && !file.name.endsWith('.csv')) {
+    if (!ALLOWED_TYPES.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.pdf') && !file.name.endsWith('.docx') && !file.name.endsWith('.doc')) {
       setStatus({ type: 'error', message: 'Only CSV, PDF, and DOCX files are allowed.' });
       return;
     }
@@ -62,9 +114,10 @@ export function FileUpload({ onCSVParsed }: FileUploadProps) {
     setUploading(false);
     toast({ title: 'File uploaded', description: `${file.name} stored securely.` });
 
-    // If CSV, parse it
-    if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+    // Parse file based on type
+    if (isCSV(file)) {
       setParsing(true);
+      setParsingLabel('Parsing CSV...');
       try {
         const csvText = await file.text();
         const { data, error } = await supabase.functions.invoke('parse-csv', {
@@ -81,8 +134,53 @@ export function FileUpload({ onCSVParsed }: FileUploadProps) {
         setStatus({ type: 'error', message });
       }
       setParsing(false);
-    } else {
-      setStatus({ type: 'success', message: `${file.name} uploaded successfully.` });
+    } else if (isPDF(file) || isDOCX(file)) {
+      setParsing(true);
+      const fileType = isPDF(file) ? 'PDF' : 'DOCX';
+      setParsingLabel(`Extracting text from ${fileType}...`);
+
+      try {
+        // Step 1: Extract text client-side
+        let textContent: string;
+        if (isPDF(file)) {
+          textContent = await extractTextFromPDF(file);
+        } else {
+          textContent = await extractTextFromDOCX(file);
+        }
+
+        if (!textContent || textContent.trim().length < 10) {
+          setStatus({ type: 'error', message: `Could not extract readable text from this ${fileType}. The file may be scanned or image-based.` });
+          setParsing(false);
+          if (fileRef.current) fileRef.current.value = '';
+          return;
+        }
+
+        // Step 2: Send to AI for field extraction
+        setParsingLabel(`AI extracting financial data...`);
+
+        const { data, error } = await supabase.functions.invoke('parse-document', {
+          body: { textContent },
+        });
+
+        if (error) throw error;
+
+        if (data?.data && Object.keys(data.data).length > 0) {
+          onCSVParsed(data.data);
+          setStatus({
+            type: 'success',
+            message: `AI extracted ${data.fieldsExtracted || Object.keys(data.data).length} fields from ${fileType}.`,
+          });
+        } else {
+          setStatus({
+            type: 'error',
+            message: `No financial data could be identified in this ${fileType}. Ensure it contains financial metrics like revenue, burn rate, etc.`,
+          });
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : `Failed to parse ${fileType}`;
+        setStatus({ type: 'error', message });
+      }
+      setParsing(false);
     }
 
     // Reset input
@@ -101,7 +199,7 @@ export function FileUpload({ onCSVParsed }: FileUploadProps) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Upload a CSV to auto-fill fields, or PDF/DOCX for secure storage.
+        Upload CSV, PDF, or DOCX to auto-fill financial fields using AI extraction.
       </p>
 
       <input
@@ -122,7 +220,7 @@ export function FileUpload({ onCSVParsed }: FileUploadProps) {
         {uploading ? (
           <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Uploading...</>
         ) : parsing ? (
-          <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Parsing CSV...</>
+          <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {parsingLabel}</>
         ) : (
           <><Upload className="h-4 w-4 mr-2" /> Choose File</>
         )}
