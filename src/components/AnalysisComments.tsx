@@ -5,14 +5,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface AnalysisCommentsProps {
   analysisId: string;
 }
 
+interface CommentRecord {
+  analysis_id: string;
+  content: string;
+  created_at: string;
+  id: string;
+  user_id: string;
+  profile?: {
+    display_name: string | null;
+    email: string | null;
+  } | null;
+}
+
 export function AnalysisComments({ analysisId }: AnalysisCommentsProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -20,37 +34,91 @@ export function AnalysisComments({ analysisId }: AnalysisCommentsProps) {
   const { data: comments, isLoading } = useQuery({
     queryKey: ['analysis-comments', analysisId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('analysis_comments') as any)
-        .select('*, profiles:user_id(display_name, email)')
+      const { data: commentRows, error: commentsError } = await supabase
+        .from('analysis_comments')
+        .select('*')
         .eq('analysis_id', analysisId)
         .order('created_at', { ascending: true });
-      if (error) throw error;
-      return data as any[];
+
+      if (commentsError) throw commentsError;
+
+      const commentList = (commentRows ?? []) as CommentRecord[];
+      const userIds = Array.from(new Set(commentList.map((comment) => comment.user_id).filter(Boolean)));
+
+      if (userIds.length === 0) {
+        return commentList;
+      }
+
+      const { data: profileRows, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, email')
+        .in('user_id', userIds);
+
+      if (profilesError) {
+        console.error('Failed to load comment profiles', profilesError);
+        return commentList;
+      }
+
+      const profileMap = new Map(
+        (profileRows ?? []).map((profile) => [
+          profile.user_id,
+          {
+            display_name: profile.display_name,
+            email: profile.email,
+          },
+        ]),
+      );
+
+      return commentList.map((comment) => ({
+        ...comment,
+        profile: profileMap.get(comment.user_id) ?? null,
+      }));
     },
-    enabled: !!analysisId,
+    enabled: !!analysisId && !!user,
   });
 
   const addComment = async () => {
-    if (!newComment.trim() || !user) return;
+    const trimmedComment = newComment.trim();
+    if (!trimmedComment || !user) return;
+
     setIsSending(true);
     try {
-      await (supabase.from('analysis_comments') as any)
-        .insert({
-          analysis_id: analysisId,
-          user_id: user.id,
-          content: newComment.trim(),
-        });
+      const { error } = await supabase.from('analysis_comments').insert({
+        analysis_id: analysisId,
+        user_id: user.id,
+        content: trimmedComment,
+      });
+
+      if (error) throw error;
+
       setNewComment('');
-      queryClient.invalidateQueries({ queryKey: ['analysis-comments', analysisId] });
-    } catch (e) {
-      console.error('Failed to add comment', e);
+      await queryClient.invalidateQueries({ queryKey: ['analysis-comments', analysisId] });
+    } catch (error) {
+      console.error('Failed to add comment', error);
+      toast({
+        title: 'Failed to add comment',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
     }
-    setIsSending(false);
   };
 
   const deleteComment = async (commentId: string) => {
-    await (supabase.from('analysis_comments') as any).delete().eq('id', commentId);
-    queryClient.invalidateQueries({ queryKey: ['analysis-comments', analysisId] });
+    try {
+      const { error } = await supabase.from('analysis_comments').delete().eq('id', commentId);
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ['analysis-comments', analysisId] });
+    } catch (error) {
+      console.error('Failed to delete comment', error);
+      toast({
+        title: 'Failed to delete comment',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -75,13 +143,17 @@ export function AnalysisComments({ analysisId }: AnalysisCommentsProps) {
         </div>
       )}
 
+      {!isLoading && (!comments || comments.length === 0) && (
+        <div className="text-xs text-muted-foreground py-2">No comments yet.</div>
+      )}
+
       <div className="space-y-2 max-h-48 overflow-y-auto">
-        {comments?.map((comment: any) => (
+        {comments?.map((comment) => (
           <div key={comment.id} className="p-2 rounded bg-muted/20 group">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-xs font-medium text-foreground">
-                  {comment.profiles?.display_name || 'Unknown'}
+                  {comment.profile?.display_name || comment.profile?.email || 'Unknown'}
                 </span>
                 <span className="text-[10px] text-muted-foreground ml-2">
                   {new Date(comment.created_at).toLocaleString()}
