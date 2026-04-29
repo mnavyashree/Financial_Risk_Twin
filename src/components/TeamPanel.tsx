@@ -48,19 +48,20 @@ export function TeamPanel() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: memberships, error: membershipError } = await (supabase.from('team_members') as any)
+      const { data: memberships, error: membershipError } = await supabase
+        .from('team_members')
         .select('team_id, role')
         .eq('user_id', user.id);
       if (membershipError) throw membershipError;
 
-      const membershipRows = (memberships || []) as any[];
+      const membershipRows = memberships || [];
       const memberTeamIds = membershipRows.map((membership) => membership.team_id);
 
       const teamRequests = [
-        (supabase.from('teams') as any).select('id, name, created_by, created_at').eq('created_by', user.id),
+        supabase.from('teams').select('id, name, created_by, created_at, updated_at').eq('created_by', user.id),
         memberTeamIds.length
-          ? (supabase.from('teams') as any).select('id, name, created_by, created_at').in('id', memberTeamIds)
-          : Promise.resolve({ data: [], error: null }),
+          ? supabase.from('teams').select('id, name, created_by, created_at, updated_at').in('id', memberTeamIds)
+          : Promise.resolve({ data: [] as Team[], error: null }),
       ];
 
       const [{ data: ownedTeams, error: ownedError }, { data: memberTeams, error: memberError }] = await Promise.all(teamRequests);
@@ -68,13 +69,13 @@ export function TeamPanel() {
       if (memberError) throw memberError;
 
       const membershipByTeamId = new Map(membershipRows.map((membership) => [membership.team_id, membership]));
-      const teamsById = new Map([...(ownedTeams || []), ...(memberTeams || [])].map((team: any) => [team.id, team]));
+      const teamsById = new Map([...(ownedTeams || []), ...(memberTeams || [])].map((team) => [team.id, team]));
 
-      return Array.from(teamsById.values()).map((team: any) => ({
+      return Array.from(teamsById.values()).map((team) => ({
         team,
         team_id: team.id,
         role: membershipByTeamId.get(team.id)?.role || (team.created_by === user.id ? 'owner' : 'member'),
-      }));
+      })) satisfies TeamListItem[];
     },
     enabled: !!user,
   });
@@ -82,20 +83,21 @@ export function TeamPanel() {
   const { data: teamMembers } = useQuery({
     queryKey: ['team-members', selectedTeamId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('team_members') as any)
+      const { data, error } = await supabase
+        .from('team_members')
         .select('*')
         .eq('team_id', selectedTeamId);
       if (error) throw error;
 
-      const members = (data || []) as any[];
+      const members = data || [];
       const userIds = [...new Set(members.map((member) => member.user_id).filter(Boolean))];
       const { data: profiles, error: profilesError } = userIds.length
-        ? await (supabase.from('profiles') as any).select('user_id, display_name, email').in('user_id', userIds)
-        : { data: [], error: null };
+        ? await supabase.from('profiles').select('user_id, display_name, email').in('user_id', userIds)
+        : { data: [] as Profile[], error: null };
       if (profilesError) throw profilesError;
 
-      const profilesByUserId = new Map((profiles || []).map((profile: any) => [profile.user_id, profile]));
-      return members.map((member) => ({ ...member, profile: profilesByUserId.get(member.user_id) }));
+      const profilesByUserId = new Map((profiles || []).map((profile) => [profile.user_id, profile]));
+      return members.map((member) => ({ ...member, profile: profilesByUserId.get(member.user_id) })) satisfies TeamMemberWithProfile[];
     },
     enabled: !!selectedTeamId,
   });
