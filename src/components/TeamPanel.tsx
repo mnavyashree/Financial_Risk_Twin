@@ -6,9 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+type Team = Database['public']['Tables']['teams']['Row'];
+type TeamMember = Database['public']['Tables']['team_members']['Row'];
+type Profile = Pick<Database['public']['Tables']['profiles']['Row'], 'user_id' | 'display_name' | 'email'>;
+type TeamListItem = { team: Team; team_id: string; role: string };
+type TeamMemberWithProfile = TeamMember & { profile?: Profile };
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Please try again.');
 
 const roleIcons: Record<string, React.ElementType> = {
   owner: Crown,
@@ -37,11 +46,36 @@ export function TeamPanel() {
   const { data: teams, isLoading } = useQuery({
     queryKey: ['teams', user?.id],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('team_members') as any)
-        .select('team_id, role, teams:team_id(id, name, created_by, created_at)')
-        .eq('user_id', user?.id);
-      if (error) throw error;
-      return data as any[];
+      if (!user) return [];
+
+      const { data: memberships, error: membershipError } = await supabase
+        .from('team_members')
+        .select('team_id, role')
+        .eq('user_id', user.id);
+      if (membershipError) throw membershipError;
+
+      const membershipRows = memberships || [];
+      const memberTeamIds = membershipRows.map((membership) => membership.team_id);
+
+      const teamRequests = [
+        supabase.from('teams').select('id, name, created_by, created_at, updated_at').eq('created_by', user.id),
+        memberTeamIds.length
+          ? supabase.from('teams').select('id, name, created_by, created_at, updated_at').in('id', memberTeamIds)
+          : Promise.resolve({ data: [] as Team[], error: null }),
+      ];
+
+      const [{ data: ownedTeams, error: ownedError }, { data: memberTeams, error: memberError }] = await Promise.all(teamRequests);
+      if (ownedError) throw ownedError;
+      if (memberError) throw memberError;
+
+      const membershipByTeamId = new Map(membershipRows.map((membership) => [membership.team_id, membership]));
+      const teamsById = new Map([...(ownedTeams || []), ...(memberTeams || [])].map((team) => [team.id, team]));
+
+      return Array.from(teamsById.values()).map((team) => ({
+        team,
+        team_id: team.id,
+        role: membershipByTeamId.get(team.id)?.role || (team.created_by === user.id ? 'owner' : 'member'),
+      })) satisfies TeamListItem[];
     },
     enabled: !!user,
   });
@@ -49,11 +83,21 @@ export function TeamPanel() {
   const { data: teamMembers } = useQuery({
     queryKey: ['team-members', selectedTeamId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('team_members') as any)
-        .select('*, profiles:user_id(display_name, email)')
+      const { data, error } = await supabase
+        .from('team_members')
+        .select('*')
         .eq('team_id', selectedTeamId);
       if (error) throw error;
-      return data as any[];
+
+      const members = data || [];
+      const userIds = [...new Set(members.map((member) => member.user_id).filter(Boolean))];
+      const { data: profiles, error: profilesError } = userIds.length
+        ? await supabase.from('profiles').select('user_id, display_name, email').in('user_id', userIds)
+        : { data: [] as Profile[], error: null };
+      if (profilesError) throw profilesError;
+
+      const profilesByUserId = new Map((profiles || []).map((profile) => [profile.user_id, profile]));
+      return members.map((member) => ({ ...member, profile: profilesByUserId.get(member.user_id) })) satisfies TeamMemberWithProfile[];
     },
     enabled: !!selectedTeamId,
   });
@@ -62,21 +106,23 @@ export function TeamPanel() {
     if (!newTeamName.trim() || !user) return;
     setIsCreating(true);
     try {
-      const { data: team, error } = await (supabase.from('teams') as any)
+      const { data: team, error } = await supabase
+        .from('teams')
         .insert({ name: newTeamName.trim(), created_by: user.id })
         .select('id')
         .single();
       if (error) throw error;
 
-      // Add creator as owner
-      await (supabase.from('team_members') as any)
+      const { error: memberError } = await supabase
+        .from('team_members')
         .insert({ team_id: team.id, user_id: user.id, role: 'owner' });
+      if (memberError) throw memberError;
 
       setNewTeamName('');
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       toast({ title: 'Team created successfully!' });
-    } catch (e) {
-      toast({ title: 'Failed to create team', variant: 'destructive' });
+    } catch (e: unknown) {
+      toast({ title: 'Failed to create team', description: getErrorMessage(e), variant: 'destructive' });
     }
     setIsCreating(false);
   };
@@ -85,17 +131,20 @@ export function TeamPanel() {
     if (!inviteEmail.trim() || !selectedTeamId) return;
     try {
       // Look up user by email in profiles
-      const { data: profile } = await (supabase.from('profiles') as any)
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
         .select('user_id')
         .eq('email', inviteEmail.trim())
-        .single();
+        .maybeSingle();
+      if (profileError) throw profileError;
 
       if (!profile) {
         toast({ title: 'User not found', description: 'That email is not registered.', variant: 'destructive' });
         return;
       }
 
-      const { error } = await (supabase.from('team_members') as any)
+      const { error } = await supabase
+        .from('team_members')
         .insert({ team_id: selectedTeamId, user_id: profile.user_id, role: inviteRole });
 
       if (error) throw error;
@@ -103,13 +152,17 @@ export function TeamPanel() {
       setInviteEmail('');
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       toast({ title: 'Member added!' });
-    } catch (e: any) {
-      toast({ title: 'Failed to add member', description: e?.message, variant: 'destructive' });
+    } catch (e: unknown) {
+      toast({ title: 'Failed to add member', description: getErrorMessage(e), variant: 'destructive' });
     }
   };
 
   const removeMember = async (memberId: string) => {
-    await (supabase.from('team_members') as any).delete().eq('id', memberId);
+    const { error } = await supabase.from('team_members').delete().eq('id', memberId);
+    if (error) {
+      toast({ title: 'Failed to remove member', description: error.message, variant: 'destructive' });
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ['team-members'] });
     toast({ title: 'Member removed' });
   };
@@ -164,8 +217,9 @@ export function TeamPanel() {
       )}
 
       <div className="space-y-2">
-        {teams?.map((membership: any) => {
-          const team = membership.teams;
+        {teams?.map((membership) => {
+          const team = membership.team;
+          if (!team) return null;
           const isSelected = selectedTeamId === team.id;
           const RoleIcon = roleIcons[membership.role] || User;
 
@@ -197,7 +251,7 @@ export function TeamPanel() {
                 >
                   {/* Members list */}
                   <div className="space-y-1">
-                    {teamMembers?.map((m: any) => {
+                    {teamMembers?.map((m) => {
                       const MRoleIcon = roleIcons[m.role] || User;
                       return (
                         <div key={m.id} className="flex items-center justify-between p-2 rounded bg-muted/20">
@@ -206,8 +260,8 @@ export function TeamPanel() {
                               <MRoleIcon className="h-3 w-3 text-primary" />
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-foreground">{m.profiles?.display_name || 'Unknown'}</p>
-                              <p className="text-[10px] text-muted-foreground">{m.profiles?.email}</p>
+                              <p className="text-xs font-medium text-foreground">{m.profile?.display_name || 'Unknown'}</p>
+                              <p className="text-[10px] text-muted-foreground">{m.profile?.email || 'No email available'}</p>
                             </div>
                           </div>
                           {membership.role === 'owner' && m.user_id !== user?.id && (
