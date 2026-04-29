@@ -37,11 +37,35 @@ export function TeamPanel() {
   const { data: teams, isLoading } = useQuery({
     queryKey: ['teams', user?.id],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('team_members') as any)
-        .select('team_id, role, teams:team_id(id, name, created_by, created_at)')
-        .eq('user_id', user?.id);
-      if (error) throw error;
-      return data as any[];
+      if (!user) return [];
+
+      const { data: memberships, error: membershipError } = await (supabase.from('team_members') as any)
+        .select('team_id, role')
+        .eq('user_id', user.id);
+      if (membershipError) throw membershipError;
+
+      const membershipRows = (memberships || []) as any[];
+      const memberTeamIds = membershipRows.map((membership) => membership.team_id);
+
+      const teamRequests = [
+        (supabase.from('teams') as any).select('id, name, created_by, created_at').eq('created_by', user.id),
+        memberTeamIds.length
+          ? (supabase.from('teams') as any).select('id, name, created_by, created_at').in('id', memberTeamIds)
+          : Promise.resolve({ data: [], error: null }),
+      ];
+
+      const [{ data: ownedTeams, error: ownedError }, { data: memberTeams, error: memberError }] = await Promise.all(teamRequests);
+      if (ownedError) throw ownedError;
+      if (memberError) throw memberError;
+
+      const membershipByTeamId = new Map(membershipRows.map((membership) => [membership.team_id, membership]));
+      const teamsById = new Map([...(ownedTeams || []), ...(memberTeams || [])].map((team: any) => [team.id, team]));
+
+      return Array.from(teamsById.values()).map((team: any) => ({
+        team,
+        team_id: team.id,
+        role: membershipByTeamId.get(team.id)?.role || (team.created_by === user.id ? 'owner' : 'member'),
+      }));
     },
     enabled: !!user,
   });
@@ -50,10 +74,19 @@ export function TeamPanel() {
     queryKey: ['team-members', selectedTeamId],
     queryFn: async () => {
       const { data, error } = await (supabase.from('team_members') as any)
-        .select('*, profiles:user_id(display_name, email)')
+        .select('*')
         .eq('team_id', selectedTeamId);
       if (error) throw error;
-      return data as any[];
+
+      const members = (data || []) as any[];
+      const userIds = [...new Set(members.map((member) => member.user_id).filter(Boolean))];
+      const { data: profiles, error: profilesError } = userIds.length
+        ? await (supabase.from('profiles') as any).select('user_id, display_name, email').in('user_id', userIds)
+        : { data: [], error: null };
+      if (profilesError) throw profilesError;
+
+      const profilesByUserId = new Map((profiles || []).map((profile: any) => [profile.user_id, profile]));
+      return members.map((member) => ({ ...member, profile: profilesByUserId.get(member.user_id) }));
     },
     enabled: !!selectedTeamId,
   });
@@ -75,8 +108,8 @@ export function TeamPanel() {
       setNewTeamName('');
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       toast({ title: 'Team created successfully!' });
-    } catch (e) {
-      toast({ title: 'Failed to create team', variant: 'destructive' });
+    } catch (e: any) {
+      toast({ title: 'Failed to create team', description: e?.message, variant: 'destructive' });
     }
     setIsCreating(false);
   };
@@ -165,7 +198,8 @@ export function TeamPanel() {
 
       <div className="space-y-2">
         {teams?.map((membership: any) => {
-          const team = membership.teams;
+          const team = membership.team;
+          if (!team) return null;
           const isSelected = selectedTeamId === team.id;
           const RoleIcon = roleIcons[membership.role] || User;
 
@@ -206,8 +240,8 @@ export function TeamPanel() {
                               <MRoleIcon className="h-3 w-3 text-primary" />
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-foreground">{m.profiles?.display_name || 'Unknown'}</p>
-                              <p className="text-[10px] text-muted-foreground">{m.profiles?.email}</p>
+                              <p className="text-xs font-medium text-foreground">{m.profile?.display_name || 'Unknown'}</p>
+                              <p className="text-[10px] text-muted-foreground">{m.profile?.email || 'No email available'}</p>
                             </div>
                           </div>
                           {membership.role === 'owner' && m.user_id !== user?.id && (
