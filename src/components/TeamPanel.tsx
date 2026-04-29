@@ -106,21 +106,23 @@ export function TeamPanel() {
     if (!newTeamName.trim() || !user) return;
     setIsCreating(true);
     try {
-      const { data: team, error } = await (supabase.from('teams') as any)
+      const { data: team, error } = await supabase
+        .from('teams')
         .insert({ name: newTeamName.trim(), created_by: user.id })
         .select('id')
         .single();
       if (error) throw error;
 
-      // Add creator as owner
-      await (supabase.from('team_members') as any)
+      const { error: memberError } = await supabase
+        .from('team_members')
         .insert({ team_id: team.id, user_id: user.id, role: 'owner' });
+      if (memberError) throw memberError;
 
       setNewTeamName('');
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       toast({ title: 'Team created successfully!' });
-    } catch (e: any) {
-      toast({ title: 'Failed to create team', description: e?.message, variant: 'destructive' });
+    } catch (e: unknown) {
+      toast({ title: 'Failed to create team', description: getErrorMessage(e), variant: 'destructive' });
     }
     setIsCreating(false);
   };
@@ -129,17 +131,20 @@ export function TeamPanel() {
     if (!inviteEmail.trim() || !selectedTeamId) return;
     try {
       // Look up user by email in profiles
-      const { data: profile } = await (supabase.from('profiles') as any)
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
         .select('user_id')
         .eq('email', inviteEmail.trim())
-        .single();
+        .maybeSingle();
+      if (profileError) throw profileError;
 
       if (!profile) {
         toast({ title: 'User not found', description: 'That email is not registered.', variant: 'destructive' });
         return;
       }
 
-      const { error } = await (supabase.from('team_members') as any)
+      const { error } = await supabase
+        .from('team_members')
         .insert({ team_id: selectedTeamId, user_id: profile.user_id, role: inviteRole });
 
       if (error) throw error;
@@ -147,13 +152,17 @@ export function TeamPanel() {
       setInviteEmail('');
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       toast({ title: 'Member added!' });
-    } catch (e: any) {
-      toast({ title: 'Failed to add member', description: e?.message, variant: 'destructive' });
+    } catch (e: unknown) {
+      toast({ title: 'Failed to add member', description: getErrorMessage(e), variant: 'destructive' });
     }
   };
 
   const removeMember = async (memberId: string) => {
-    await (supabase.from('team_members') as any).delete().eq('id', memberId);
+    const { error } = await supabase.from('team_members').delete().eq('id', memberId);
+    if (error) {
+      toast({ title: 'Failed to remove member', description: error.message, variant: 'destructive' });
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ['team-members'] });
     toast({ title: 'Member removed' });
   };
