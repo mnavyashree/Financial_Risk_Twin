@@ -317,6 +317,31 @@ export function TeamPanel() {
                       </Button>
                     </div>
                   )}
+
+                  {/* Delete team (owners only) */}
+                  {membership.role === 'owner' && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-full justify-start">
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete team
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete "{team.name}"?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This permanently removes the team and all its members. Shared analyses will no longer be visible to members.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteTeam(team.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </motion.div>
               )}
             </div>
