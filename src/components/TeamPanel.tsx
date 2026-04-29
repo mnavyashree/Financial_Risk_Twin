@@ -169,6 +169,23 @@ export function TeamPanel() {
     toast({ title: 'Member removed' });
   };
 
+  const deleteTeam = async (teamId: string) => {
+    try {
+      // Remove all team_members first (in case RLS cascade isn't set up)
+      const { error: membersError } = await supabase.from('team_members').delete().eq('team_id', teamId);
+      if (membersError) throw membersError;
+
+      const { error } = await supabase.from('teams').delete().eq('id', teamId);
+      if (error) throw error;
+
+      if (selectedTeamId === teamId) setSelectedTeamId(null);
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast({ title: 'Team deleted' });
+    } catch (e: unknown) {
+      toast({ title: 'Failed to delete team', description: getErrorMessage(e), variant: 'destructive' });
+    }
+  };
+
   return (
     <motion.div
       className="glass-card p-6 space-y-4"
