@@ -217,7 +217,7 @@ export function TeamPanel() {
       )}
 
       <div className="space-y-2">
-        {teams?.map((membership: any) => {
+        {teams?.map((membership) => {
           const team = membership.team;
           if (!team) return null;
           const isSelected = selectedTeamId === team.id;
@@ -251,7 +251,7 @@ export function TeamPanel() {
                 >
                   {/* Members list */}
                   <div className="space-y-1">
-                    {teamMembers?.map((m: any) => {
+                    {teamMembers?.map((m) => {
                       const MRoleIcon = roleIcons[m.role] || User;
                       return (
                         <div key={m.id} className="flex items-center justify-between p-2 rounded bg-muted/20">
