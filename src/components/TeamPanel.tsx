@@ -171,12 +171,15 @@ export function TeamPanel() {
 
   const deleteTeam = async (teamId: string) => {
     try {
-      // Remove all team_members first (in case RLS cascade isn't set up)
-      const { error: membersError } = await supabase.from('team_members').delete().eq('team_id', teamId);
-      if (membersError) throw membersError;
-
-      const { error } = await supabase.from('teams').delete().eq('id', teamId);
+      const { data, error } = await supabase
+        .from('teams')
+        .delete()
+        .eq('id', teamId)
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('You do not have permission to delete this team.');
+      }
 
       if (selectedTeamId === teamId) setSelectedTeamId(null);
       queryClient.invalidateQueries({ queryKey: ['teams'] });
