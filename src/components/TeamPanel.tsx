@@ -6,9 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+type Team = Database['public']['Tables']['teams']['Row'];
+type TeamMember = Database['public']['Tables']['team_members']['Row'];
+type Profile = Pick<Database['public']['Tables']['profiles']['Row'], 'user_id' | 'display_name' | 'email'>;
+type TeamListItem = { team: Team; team_id: string; role: string };
+type TeamMemberWithProfile = TeamMember & { profile?: Profile };
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Please try again.');
 
 const roleIcons: Record<string, React.ElementType> = {
   owner: Crown,
