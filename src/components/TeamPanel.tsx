@@ -4,6 +4,8 @@ import { Users, Plus, UserPlus, Crown, Shield, Eye, User, X, Loader2 } from 'luc
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
@@ -167,6 +169,23 @@ export function TeamPanel() {
     toast({ title: 'Member removed' });
   };
 
+  const deleteTeam = async (teamId: string) => {
+    try {
+      // Remove all team_members first (in case RLS cascade isn't set up)
+      const { error: membersError } = await supabase.from('team_members').delete().eq('team_id', teamId);
+      if (membersError) throw membersError;
+
+      const { error } = await supabase.from('teams').delete().eq('id', teamId);
+      if (error) throw error;
+
+      if (selectedTeamId === teamId) setSelectedTeamId(null);
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast({ title: 'Team deleted' });
+    } catch (e: unknown) {
+      toast({ title: 'Failed to delete team', description: getErrorMessage(e), variant: 'destructive' });
+    }
+  };
+
   return (
     <motion.div
       className="glass-card p-6 space-y-4"
@@ -297,6 +316,31 @@ export function TeamPanel() {
                         <UserPlus className="h-3.5 w-3.5" />
                       </Button>
                     </div>
+                  )}
+
+                  {/* Delete team (owners only) */}
+                  {membership.role === 'owner' && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-full justify-start">
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete team
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete "{team.name}"?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This permanently removes the team and all its members. Shared analyses will no longer be visible to members.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteTeam(team.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   )}
                 </motion.div>
               )}
